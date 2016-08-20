@@ -1,7 +1,7 @@
 name "nmap"
 default_version "7.12"
 
-version("7.12") { source sha256: "edfe81f6763223c0a29bfa15a8526e2a" }
+version("7.12") { source sha256: "63df082a87c95a189865d37304357405160fc6333addcf5b84204c95e0539b04" }
 
 source url: "https://nmap.org/dist/nmap-7.12.tar.bz2"
 
