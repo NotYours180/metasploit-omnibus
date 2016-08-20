@@ -15,7 +15,7 @@
 #
 
 name "pcaprub"
-default_version "0.12.0"
+default_version "0.12.4"
 
 dependency "ruby"
 if windows?
