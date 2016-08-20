@@ -20,6 +20,7 @@ license "BSD-2-Clause"
 license_file "BSDL"
 license_file "COPYING"
 license_file "LEGAL"
+skip_transitive_dependency_licensing true
 
 # - chef-client cannot use 2.2.x yet due to a bug in IRB that affects chef-shell on linux:
 #   https://bugs.ruby-lang.org/issues/11869
@@ -41,7 +42,7 @@ dependency "libyaml"
 # and that's the only one we will ever use.
 dependency "libiconv"
 
-version("2.3.1")      { source md5: "0d896c2e7fd54f722b399f407e48a4c6" }
+version("2.3.1")      { source sha256: "b87c738cb2032bf4920fef8e3864dc5cf8eae9d89d8d523ce0236945c5797dcd" }
 version("2.3.0")      { source md5: "e81740ac7b14a9f837e9573601db3162" }
 
 version("2.2.5")      { source md5: "bd8e349d4fb2c75d90817649674f94be" }
@@ -72,7 +73,7 @@ source url: "https://cache.ruby-lang.org/pub/ruby/#{version.match(/^(\d+\.\d+)/)
 
 relative_path "ruby-#{version}"
 
-env = with_standard_compiler_flags(with_embedded_path({}, msys: true), bfd_flags: true)
+env = with_standard_compiler_flags(with_embedded_path)
 
 if mac_os_x?
   # -Qunused-arguments suppresses "argument unused during compilation"
@@ -130,6 +131,8 @@ build do
     patch source: "ruby-no-stack-protector.patch", plevel: 1, env: patch_env
   elsif solaris_10? && version =~ /^1.9/
     patch source: "ruby-sparc-1.9.3-c99.patch", plevel: 1, env: patch_env
+  elsif solaris_11? && version =~ /^2.1/
+    patch source: "ruby-solaris-linux-socket-compat.patch", plevel: 1, env: patch_env
   end
 
   # wrlinux7/ios_xr build boxes from Cisco include libssp and there is no way to
@@ -146,15 +149,13 @@ build do
   # other platforms.  generally you need to have a condition where the
   # embedded and non-embedded libs get into a fight (libiconv, openssl, etc)
   # and ruby trying to set LD_LIBRARY_PATH itself gets it wrong.
+  #
+  # Also, fix paths emitted in the makefile on windows on both msys and msys2.
   if version.satisfies?(">= 2.1")
-    patch source: "ruby-2_1_3-no-mkmf.patch", plevel: 1, env: patch_env
+    patch source: "ruby-mkmf.patch", plevel: 1, env: patch_env
     # should intentionally break and fail to apply on 2.2, patch will need to
     # be fixed.
   end
-
-  # Patch Makefile.in to allow RCFLAGS environment variable to be accepted
-  # when invoking WINDRES.
-  patch source: "ruby-take-windres-rcflags.patch", plevel: 1, env: patch_env
 
   # Fix reserve stack segmentation fault when building on RHEL5 or below
   # Currently only affects 2.1.7 and 2.2.3. This patch taken from the fix
@@ -223,11 +224,10 @@ build do
   env["PKG_CONFIG"] = "/bin/true" if aix?
 
   configure(*configure_command, env: env)
-  if windows?
-    # On windows, msys make 3.81 breaks with parallel builds.
-    make env: env
-    make "install", env: env
+  make "-j #{workers}", env: env
+  make "-j #{workers} install", env: env
 
+  if windows?
     # Needed now that we switched to msys2 and have not figured out how to tell
     # it how to statically link yet
     dlls = ["libwinpthread-1"]
@@ -246,8 +246,6 @@ build do
       end
     end
   else
-    make "-j #{workers}", env: env
-    make "-j #{workers} install", env: env
   end
 
 end
